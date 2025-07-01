@@ -3,7 +3,6 @@ import { NavLink, useLocation } from "react-router-dom";
 import { 
   Home, 
   Search, 
-  FolderOpen, 
   Upload, 
   BarChart3, 
   Settings, 
@@ -20,10 +19,13 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarFooter,
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { useAuth } from "@/hooks/useAuth";
 
 const mainNavItems = [
   { title: "Dashboard", url: "/", icon: Home },
@@ -48,9 +50,9 @@ const mockProjects = [
 export function SidebarNav() {
   const { open } = useSidebar();
   const location = useLocation();
+  const { user, signOut } = useAuth();
   const [projectsExpanded, setProjectsExpanded] = useState(true);
 
-  const isActive = (path: string) => location.pathname === path;
   const getNavCls = ({ isActive }: { isActive: boolean }) =>
     isActive ? "bg-primary text-primary-foreground" : "hover:bg-accent hover:text-accent-foreground";
 
@@ -144,6 +146,23 @@ export function SidebarNav() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+      
+      <SidebarFooter>
+        <div className="space-y-2 p-2">
+          <div className="flex items-center justify-between">
+            <div className="text-xs text-muted-foreground truncate">
+              {user?.email}
+            </div>
+            <ThemeToggle />
+          </div>
+          <SidebarMenuButton 
+            onClick={signOut}
+            className="w-full text-destructive hover:text-destructive hover:bg-destructive/10"
+          >
+            Sign Out
+          </SidebarMenuButton>
+        </div>
+      </SidebarFooter>
     </Sidebar>
   );
 }
