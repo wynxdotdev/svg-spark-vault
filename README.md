@@ -1,73 +1,151 @@
-# Welcome to your Lovable project
+# SVG Spark Vault
 
-## Project info
+A beautiful, modern SVG management toolkit inspired by Heroicons. Organize, search, and manage your SVG icon collections with ease.
 
-**URL**: https://lovable.dev/projects/0f88c943-16e6-469b-8bb6-da48d09ead09
+## 🚀 Features
 
-## How can I edit this code?
+### Core Functionality
+- **📁 Project Management**: Organize SVGs into custom projects with color coding
+- **🔍 Advanced Search**: Filter by name, tags, projects with grid/list views
+- **📤 Smart Upload**: Drag & drop SVG upload with auto-optimization
+- **📊 Analytics Dashboard**: Track views, downloads, and usage statistics
+- **👤 User Profiles**: Personal dashboard with achievements and activity tracking
+- **⚙️ Comprehensive Settings**: Theme switching, notifications, privacy controls
 
-There are several ways of editing your application.
+### Design System
+- **🎨 Vibrant Theme**: Purple gradient design with smooth animations
+- **🌓 Dark/Light Mode**: Seamless theme switching with system preference detection
+- **📱 Responsive Design**: Mobile-first approach with beautiful layouts
+- **✨ Smooth Animations**: Hover effects, transitions, and micro-interactions
 
-**Use Lovable**
+### Project Features
+- **Auto-categorization**: Unassigned SVGs go to "Random" project
+- **Smart Filtering**: Filter by date, name (A-Z), custom tags
+- **Batch Operations**: Download all, move between projects
+- **Usage Analytics**: Track individual SVG performance
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/0f88c943-16e6-469b-8bb6-da48d09ead09) and start prompting.
+## 📁 Project Structure
 
-Changes made via Lovable will be committed automatically to this repo.
+```
+src/
+├── components/
+│   ├── layout/
+│   │   └── main-layout.tsx          # Main app layout with sidebar
+│   ├── navigation/
+│   │   └── sidebar-nav.tsx          # Collapsible navigation sidebar
+│   ├── ui/                          # Shadcn UI components (enhanced)
+│   ├── theme-provider.tsx           # Theme context and management
+│   └── theme-toggle.tsx             # Theme switcher component
+├── pages/
+│   ├── Dashboard.tsx                # Main dashboard with stats
+│   ├── Search.tsx                   # Advanced SVG search interface
+│   ├── Upload.tsx                   # SVG upload with project selection
+│   ├── Analytics.tsx                # Performance analytics
+│   ├── Profile.tsx                  # User profile and achievements
+│   ├── Settings.tsx                 # App settings and preferences
+│   └── ProjectView.tsx              # Individual project management
+├── hooks/
+│   └── use-toast.ts                 # Toast notifications
+└── lib/
+    └── utils.ts                     # Utility functions
+```
 
-**Use your preferred IDE**
+## 🎨 Design System
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+The app uses a comprehensive design system with:
+- **CSS Variables**: Semantic color tokens in `src/index.css`
+- **Tailwind Extensions**: Custom gradients, shadows, and animations
+- **Component Variants**: Enhanced shadcn components with theme-aware styling
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+### Color Palette
+- **Primary**: Vibrant purple (`hsl(258 90% 66%)`)
+- **Accent**: Complementary magenta (`hsl(280 85% 60%)`)
+- **Gradients**: Multi-stop gradients for hero sections and CTAs
+- **Semantic Colors**: Success, warning, destructive with proper contrast
 
-Follow these steps:
+## 🚀 Getting Started
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
+### Prerequisites
+- Node.js 18+ and npm
+- Modern browser with ES6+ support
+
+### Installation
+
+```bash
+# Clone the repository
 git clone <YOUR_GIT_URL>
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+# Navigate to project directory
+cd svg-spark-vault
 
-# Step 3: Install the necessary dependencies.
-npm i
+# Install dependencies
+npm install
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+# Start development server
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+### Usage
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+1. **Dashboard**: Overview of your SVG collection with recent uploads and project stats
+2. **Upload**: Drag & drop SVGs, assign to projects, add tags
+3. **Search**: Find SVGs across all projects with advanced filtering
+4. **Projects**: Manage individual collections with custom organization
+5. **Analytics**: Track performance metrics and usage patterns
+6. **Settings**: Customize appearance, notifications, and privacy
 
-**Use GitHub Codespaces**
+## 🛠 Technology Stack
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+- **Frontend**: React 18 + TypeScript
+- **Styling**: Tailwind CSS with custom design system
+- **UI Components**: Shadcn UI (enhanced with custom variants)
+- **Routing**: React Router DOM
+- **State Management**: React Query for server state
+- **Build Tool**: Vite
+- **Theme**: Next-themes for dark/light mode
 
-## What technologies are used for this project?
+## 📊 Features Overview
 
-This project is built with:
+### Dashboard
+- Project statistics and recent activity
+- Quick upload and project creation
+- Visual project grid with usage metrics
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+### Search & Discovery
+- Real-time search across all SVGs
+- Filter by project, tags, upload date
+- Grid/list view with hover actions
+- Copy, download, and favorite functionality
 
-## How can I deploy this project?
+### Project Management
+- Color-coded project organization
+- Custom tags and descriptions
+- Public/private project settings
+- Bulk operations and project analytics
 
-Simply open [Lovable](https://lovable.dev/projects/0f88c943-16e6-469b-8bb6-da48d09ead09) and click on Share -> Publish.
+### User Experience
+- Achievements and milestones system
+- Activity timeline and usage history
+- Customizable notification preferences
+- Comprehensive privacy controls
 
-## Can I connect a custom domain to my Lovable project?
+## 🔧 Customization
 
-Yes, you can!
+The design system is fully customizable through:
+- CSS variables in `src/index.css`
+- Tailwind configuration in `tailwind.config.ts`
+- Component variants in `src/components/ui/`
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+## 📝 License
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+This project is built with Lovable and follows modern web development best practices.
+
+## 🚀 Deployment
+
+Deploy easily using Lovable's built-in deployment:
+1. Click **Share > Publish** in the Lovable editor
+2. Your app will be live instantly with a custom domain option
+
+For custom deployment:
+- Build with `npm run build`
+- Deploy the `dist` folder to any static hosting service
