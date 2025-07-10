@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Upload as UploadIcon, File, X, FolderPlus, Tag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,14 +8,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 
-const mockProjects = [
-  { id: "1", name: "UI Icons" },
-  { id: "2", name: "Illustrations" },
-  { id: "3", name: "Logos" },
-  { id: "4", name: "Social Media" },
-  { id: "random", name: "Random" },
-];
+interface ProjectData {
+  id: string;
+  name: string;
+}
 
 interface UploadedFile {
   id: string;
@@ -25,12 +24,45 @@ interface UploadedFile {
 
 export default function Upload() {
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
-  const [selectedProject, setSelectedProject] = useState("random");
+  const [selectedProject, setSelectedProject] = useState("");
+  const [projects, setProjects] = useState<ProjectData[]>([]);
   const [tags, setTags] = useState<string[]>([]);
   const [newTag, setNewTag] = useState("");
   const [description, setDescription] = useState("");
   const [isDragging, setIsDragging] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const { toast } = useToast();
+  const { user } = useAuth();
+
+  useEffect(() => {
+    if (user) {
+      fetchProjects();
+    }
+  }, [user]);
+
+  const fetchProjects = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('projects')
+        .select('id, name')
+        .order('name');
+
+      if (error) throw error;
+      setProjects(data || []);
+      
+      // Set first project as default if available
+      if (data && data.length > 0) {
+        setSelectedProject(data[0].id);
+      }
+    } catch (error) {
+      console.error('Error fetching projects:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load projects.",
+        variant: "destructive",
+      });
+    }
+  };
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -87,7 +119,7 @@ export default function Upload() {
     setTags(prev => prev.filter(tag => tag !== tagToRemove));
   };
 
-  const handleUpload = () => {
+  const handleUpload = async () => {
     if (uploadedFiles.length === 0) {
       toast({
         title: "No files selected",
@@ -97,17 +129,77 @@ export default function Upload() {
       return;
     }
 
-    // Simulate upload
-    toast({
-      title: "Upload successful!",
-      description: `${uploadedFiles.length} SVG${uploadedFiles.length > 1 ? 's' : ''} uploaded to ${mockProjects.find(p => p.id === selectedProject)?.name || 'Random'}.`,
-    });
-    
-    // Reset form
-    setUploadedFiles([]);
-    setTags([]);
-    setDescription("");
-    setSelectedProject("random");
+    if (!selectedProject) {
+      toast({
+        title: "No project selected",
+        description: "Please select a project for your SVGs.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!user) {
+      toast({
+        title: "Not authenticated",
+        description: "Please sign in to upload SVGs.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setUploading(true);
+
+    try {
+      const uploadPromises = uploadedFiles.map(async (uploadedFile) => {
+        // Create unique file path
+        const fileExt = uploadedFile.file.name.split('.').pop();
+        const fileName = `${user.id}/${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+
+        // Upload file to storage
+        const { error: uploadError } = await supabase.storage
+          .from('svg-files')
+          .upload(fileName, uploadedFile.file);
+
+        if (uploadError) throw uploadError;
+
+        // Save SVG metadata to database
+        const { error: dbError } = await supabase
+          .from('svgs')
+          .insert({
+            user_id: user.id,
+            project_id: selectedProject,
+            name: uploadedFile.file.name,
+            file_path: fileName,
+            file_size: uploadedFile.file.size,
+            tags: tags.length > 0 ? tags : null,
+            description: description || null,
+          });
+
+        if (dbError) throw dbError;
+      });
+
+      await Promise.all(uploadPromises);
+
+      toast({
+        title: "Upload successful!",
+        description: `${uploadedFiles.length} SVG${uploadedFiles.length > 1 ? 's' : ''} uploaded successfully.`,
+      });
+      
+      // Reset form
+      setUploadedFiles([]);
+      setTags([]);
+      setDescription("");
+      
+    } catch (error) {
+      console.error('Error uploading files:', error);
+      toast({
+        title: "Upload failed",
+        description: "Failed to upload one or more files. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setUploading(false);
+    }
   };
 
   return (
@@ -209,7 +301,7 @@ export default function Upload() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {mockProjects.map((project) => (
+                    {projects.map((project) => (
                       <SelectItem key={project.id} value={project.id}>
                         {project.name}
                       </SelectItem>
@@ -269,13 +361,13 @@ export default function Upload() {
           {/* Upload Button */}
           <Button 
             onClick={handleUpload}
-            disabled={uploadedFiles.length === 0}
+            disabled={uploadedFiles.length === 0 || !selectedProject || uploading}
             className="w-full"
             size="lg"
             variant="gradient"
           >
             <UploadIcon className="h-4 w-4" />
-            Upload {uploadedFiles.length > 0 ? `${uploadedFiles.length} ` : ''}SVG{uploadedFiles.length !== 1 ? 's' : ''}
+            {uploading ? 'Uploading...' : `Upload ${uploadedFiles.length > 0 ? `${uploadedFiles.length} ` : ''}SVG${uploadedFiles.length !== 1 ? 's' : ''}`}
           </Button>
 
           {/* Upload Guidelines */}

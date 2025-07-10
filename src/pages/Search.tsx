@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Search as SearchIcon, Filter, Grid, List, Download, Heart, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,22 +7,28 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 
-// Mock SVG data
-const mockSVGs = Array.from({ length: 24 }, (_, i) => ({
-  id: i + 1,
-  name: `icon-${i + 1}.svg`,
-  project: ["UI Icons", "Illustrations", "Logos", "Social"][i % 4],
-  tags: ["interface", "arrow", "navigation", "ui"].slice(0, Math.floor(Math.random() * 3) + 1),
-  size: `${(Math.random() * 3 + 0.5).toFixed(1)}kb`,
-  uploadedAt: `${Math.floor(Math.random() * 30) + 1} days ago`,
-  favorited: Math.random() > 0.7,
-  downloads: Math.floor(Math.random() * 100) + 10,
-}));
+interface SVGData {
+  id: string;
+  name: string;
+  file_path: string;
+  file_size: number | null;
+  tags: string[] | null;
+  downloads: number | null;
+  favorited: boolean | null;
+  created_at: string;
+  projects: {
+    name: string;
+  } | null;
+}
 
-const mockProjects = ["All Projects", "UI Icons", "Illustrations", "Logos", "Social", "E-commerce", "Random"];
-
-const mockTags = ["interface", "arrow", "navigation", "ui", "social", "ecommerce", "illustration", "logo"];
+interface ProjectData {
+  id: string;
+  name: string;
+}
 
 export default function Search() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -30,6 +36,72 @@ export default function Search() {
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [sortBy, setSortBy] = useState("newest");
+  const [svgs, setSvgs] = useState<SVGData[]>([]);
+  const [projects, setProjects] = useState<ProjectData[]>([]);
+  const [allTags, setAllTags] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
+  const { user } = useAuth();
+
+  useEffect(() => {
+    if (user) {
+      fetchData();
+    }
+  }, [user]);
+
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      
+      // Fetch SVGs with project names
+      const { data: svgData, error: svgError } = await supabase
+        .from('svgs')
+        .select(`
+          id,
+          name,
+          file_path,
+          file_size,
+          tags,
+          downloads,
+          favorited,
+          created_at,
+          projects (
+            name
+          )
+        `)
+        .order('created_at', { ascending: false });
+
+      if (svgError) throw svgError;
+
+      // Fetch projects
+      const { data: projectData, error: projectError } = await supabase
+        .from('projects')
+        .select('id, name')
+        .order('name');
+
+      if (projectError) throw projectError;
+
+      setSvgs(svgData || []);
+      setProjects(projectData || []);
+
+      // Extract unique tags
+      const tags = new Set<string>();
+      svgData?.forEach(svg => {
+        svg.tags?.forEach(tag => tags.add(tag));
+      });
+      setAllTags(Array.from(tags));
+
+    } catch (error) {
+      console.error('Error fetching data:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load SVGs and projects.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleTagToggle = (tag: string) => {
     setSelectedTags(prev => 
@@ -39,7 +111,107 @@ export default function Search() {
     );
   };
 
-  const SVGGridItem = ({ svg }: { svg: typeof mockSVGs[0] }) => (
+  const handleDownload = async (svg: SVGData) => {
+    try {
+      const { data } = supabase.storage
+        .from('svg-files')
+        .getPublicUrl(svg.file_path);
+
+      const link = document.createElement('a');
+      link.href = data.publicUrl;
+      link.download = svg.name;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      // Update download count
+      await supabase
+        .from('svgs')
+        .update({ downloads: (svg.downloads || 0) + 1 })
+        .eq('id', svg.id);
+
+      toast({
+        title: "Downloaded",
+        description: `${svg.name} has been downloaded.`,
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to download SVG.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleCopy = async (svg: SVGData) => {
+    try {
+      const { data } = supabase.storage
+        .from('svg-files')
+        .getPublicUrl(svg.file_path);
+
+      await navigator.clipboard.writeText(data.publicUrl);
+      toast({
+        title: "Copied",
+        description: "SVG URL copied to clipboard.",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to copy URL.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleFavorite = async (svg: SVGData) => {
+    try {
+      const newFavorited = !svg.favorited;
+      await supabase
+        .from('svgs')
+        .update({ favorited: newFavorited })
+        .eq('id', svg.id);
+
+      setSvgs(prev => prev.map(s => 
+        s.id === svg.id ? { ...s, favorited: newFavorited } : s
+      ));
+
+      toast({
+        title: newFavorited ? "Favorited" : "Unfavorited",
+        description: `${svg.name} has been ${newFavorited ? 'added to' : 'removed from'} favorites.`,
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to update favorite status.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Filter SVGs based on search, project, and tags
+  const filteredSVGs = svgs.filter(svg => {
+    const matchesSearch = svg.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                         svg.tags?.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()));
+    
+    const matchesProject = selectedProject === "All Projects" || 
+                          svg.projects?.name === selectedProject;
+    
+    const matchesTags = selectedTags.length === 0 || 
+                       selectedTags.every(tag => svg.tags?.includes(tag));
+
+    return matchesSearch && matchesProject && matchesTags;
+  });
+
+  if (!user) {
+    return (
+      <div className="text-center py-12">
+        <h1 className="text-2xl font-bold mb-2">Please sign in</h1>
+        <p className="text-muted-foreground">You need to be signed in to search SVGs.</p>
+      </div>
+    );
+  }
+
+  const SVGGridItem = ({ svg }: { svg: SVGData }) => (
     <Card className="group hover:shadow-glow transition-all duration-300 cursor-pointer">
       <CardContent className="p-4">
         <div className="aspect-square bg-muted/50 rounded-lg mb-3 flex items-center justify-center relative overflow-hidden">
@@ -50,13 +222,13 @@ export default function Search() {
           
           {/* Hover actions */}
           <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-            <Button size="icon" variant="secondary" className="h-8 w-8">
+            <Button size="icon" variant="secondary" className="h-8 w-8" onClick={() => handleDownload(svg)}>
               <Download className="h-4 w-4" />
             </Button>
-            <Button size="icon" variant="secondary" className="h-8 w-8">
+            <Button size="icon" variant="secondary" className="h-8 w-8" onClick={() => handleCopy(svg)}>
               <Copy className="h-4 w-4" />
             </Button>
-            <Button size="icon" variant="secondary" className="h-8 w-8">
+            <Button size="icon" variant="secondary" className="h-8 w-8" onClick={() => handleFavorite(svg)}>
               <Heart className={`h-4 w-4 ${svg.favorited ? "fill-red-500 text-red-500" : ""}`} />
             </Button>
           </div>
@@ -65,11 +237,11 @@ export default function Search() {
         <div className="space-y-2">
           <h3 className="font-medium text-sm truncate">{svg.name}</h3>
           <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span>{svg.project}</span>
-            <span>{svg.size}</span>
+            <span>{svg.projects?.name || 'No Project'}</span>
+            <span>{svg.file_size ? `${(svg.file_size / 1024).toFixed(1)}kb` : 'N/A'}</span>
           </div>
           <div className="flex flex-wrap gap-1">
-            {svg.tags.slice(0, 2).map((tag) => (
+            {(svg.tags || []).slice(0, 2).map((tag) => (
               <Badge key={tag} variant="secondary" className="text-xs px-2 py-0">
                 {tag}
               </Badge>
@@ -80,7 +252,7 @@ export default function Search() {
     </Card>
   );
 
-  const SVGListItem = ({ svg }: { svg: typeof mockSVGs[0] }) => (
+  const SVGListItem = ({ svg }: { svg: SVGData }) => (
     <Card className="group hover:shadow-soft transition-all duration-300">
       <CardContent className="p-4">
         <div className="flex items-center gap-4">
@@ -90,27 +262,27 @@ export default function Search() {
           
           <div className="flex-1 min-w-0">
             <h3 className="font-medium text-sm truncate">{svg.name}</h3>
-            <p className="text-xs text-muted-foreground">{svg.project} • {svg.uploadedAt}</p>
+            <p className="text-xs text-muted-foreground">{svg.projects?.name || 'No Project'} • {new Date(svg.created_at).toLocaleDateString()}</p>
           </div>
           
           <div className="flex flex-wrap gap-1">
-            {svg.tags.map((tag) => (
+            {(svg.tags || []).map((tag) => (
               <Badge key={tag} variant="secondary" className="text-xs">
                 {tag}
               </Badge>
             ))}
           </div>
           
-          <div className="text-xs text-muted-foreground">{svg.size}</div>
+          <div className="text-xs text-muted-foreground">{svg.file_size ? `${(svg.file_size / 1024).toFixed(1)}kb` : 'N/A'}</div>
           
           <div className="flex items-center gap-1">
-            <Button size="icon" variant="ghost" className="h-8 w-8">
+            <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => handleDownload(svg)}>
               <Download className="h-4 w-4" />
             </Button>
-            <Button size="icon" variant="ghost" className="h-8 w-8">
+            <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => handleCopy(svg)}>
               <Copy className="h-4 w-4" />
             </Button>
-            <Button size="icon" variant="ghost" className="h-8 w-8">
+            <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => handleFavorite(svg)}>
               <Heart className={`h-4 w-4 ${svg.favorited ? "fill-red-500 text-red-500" : ""}`} />
             </Button>
           </div>
@@ -153,9 +325,10 @@ export default function Search() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {mockProjects.map((project) => (
-                    <SelectItem key={project} value={project}>
-                      {project}
+                  <SelectItem value="All Projects">All Projects</SelectItem>
+                  {projects.map((project) => (
+                    <SelectItem key={project.id} value={project.name}>
+                      {project.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -166,7 +339,7 @@ export default function Search() {
             <div className="space-y-2 flex-1">
               <label className="text-sm font-medium">Tags</label>
               <div className="flex flex-wrap gap-2">
-                {mockTags.map((tag) => (
+                {allTags.map((tag) => (
                   <div key={tag} className="flex items-center space-x-2">
                     <Checkbox
                       id={tag}
@@ -205,7 +378,7 @@ export default function Search() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <p className="text-sm text-muted-foreground">
-            Showing {mockSVGs.length} results
+            {loading ? 'Loading...' : `Showing ${filteredSVGs.length} results`}
           </p>
           {selectedTags.length > 0 && (
             <div className="flex items-center gap-2">
@@ -244,15 +417,23 @@ export default function Search() {
       </div>
 
       {/* Results */}
-      {viewMode === "grid" ? (
+      {loading ? (
+        <div className="text-center py-12">
+          <p>Loading SVGs...</p>
+        </div>
+      ) : filteredSVGs.length === 0 ? (
+        <div className="text-center py-12">
+          <p className="text-muted-foreground">No SVGs found matching your criteria.</p>
+        </div>
+      ) : viewMode === "grid" ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
-          {mockSVGs.map((svg) => (
+          {filteredSVGs.map((svg) => (
             <SVGGridItem key={svg.id} svg={svg} />
           ))}
         </div>
       ) : (
         <div className="space-y-2">
-          {mockSVGs.map((svg) => (
+          {filteredSVGs.map((svg) => (
             <SVGListItem key={svg.id} svg={svg} />
           ))}
         </div>
