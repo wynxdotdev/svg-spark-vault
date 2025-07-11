@@ -1,3 +1,4 @@
+
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -19,6 +20,8 @@ import Analytics from "@/pages/Analytics";
 import Profile from "@/pages/Profile";
 import Settings from "@/pages/Settings";
 import ProjectView from "@/pages/ProjectView";
+import Explore from "@/pages/Explore";
+import SVGPreview from "@/pages/SVGPreview";
 import Auth from "@/pages/Auth";
 import NotFound from "./pages/NotFound";
 
@@ -38,11 +41,13 @@ const App = () => (
                 <Route path="/" element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>
                   <Route index element={<Dashboard />} />
                   <Route path="search" element={<Search />} />
+                  <Route path="explore" element={<Explore />} />
                   <Route path="upload" element={<Upload />} />
                   <Route path="analytics" element={<Analytics />} />
                   <Route path="profile" element={<Profile />} />
                   <Route path="settings" element={<Settings />} />
                   <Route path="project/:projectId" element={<ProjectView />} />
+                  <Route path="svg/:svgId" element={<SVGPreview />} />
                 </Route>
                 <Route path="*" element={<NotFound />} />
               </Routes>

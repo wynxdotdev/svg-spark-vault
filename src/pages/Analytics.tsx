@@ -1,45 +1,138 @@
+
+import { useState, useEffect } from "react";
 import { TrendingUp, Download, Eye, Heart, Folder, Upload } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { useQuery } from "@tanstack/react-query";
 
-// Mock analytics data
-const mockStats = {
-  totalViews: 15420,
-  totalDownloads: 3240,
-  totalFavorites: 890,
-  totalUploads: 234,
-  viewsGrowth: 12.5,
-  downloadsGrowth: 8.3,
-  favoritesGrowth: 15.2,
-  uploadsGrowth: 5.7,
-};
+interface AnalyticsData {
+  totalViews: number;
+  totalDownloads: number;
+  totalFavorites: number;
+  totalUploads: number;
+  viewsGrowth: number;
+  downloadsGrowth: number;
+  favoritesGrowth: number;
+  uploadsGrowth: number;
+}
 
-const mockTopSVGs = [
-  { name: "arrow-right.svg", project: "UI Icons", views: 1250, downloads: 320, favorites: 85 },
-  { name: "user-circle.svg", project: "Avatars", views: 1120, downloads: 280, favorites: 72 },
-  { name: "shopping-cart.svg", project: "E-commerce", views: 980, downloads: 245, favorites: 68 },
-  { name: "heart-filled.svg", project: "Social", views: 890, downloads: 210, favorites: 95 },
-  { name: "settings-gear.svg", project: "UI Icons", views: 750, downloads: 185, favorites: 45 },
-];
+interface TopSVG {
+  id: string;
+  name: string;
+  project: string;
+  views: number;
+  downloads: number;
+  favorites: number;
+}
 
-const mockTopProjects = [
-  { name: "UI Icons", svgs: 45, views: 5420, downloads: 1340, storage: "12.5 MB", growth: 15.2 },
-  { name: "Illustrations", svgs: 23, views: 3240, downloads: 890, storage: "45.2 MB", growth: 8.7 },
-  { name: "Logos", svgs: 12, views: 2100, downloads: 650, storage: "8.9 MB", growth: 22.1 },
-  { name: "Social Media", svgs: 31, views: 1980, downloads: 420, storage: "15.7 MB", growth: -2.3 },
-  { name: "E-commerce", svgs: 18, views: 1540, downloads: 380, storage: "9.2 MB", growth: 12.8 },
-];
-
-const mockUsageTimeline = [
-  { period: "Last 7 days", uploads: 15, views: 2340, downloads: 580 },
-  { period: "Last 30 days", uploads: 45, views: 8920, downloads: 2180 },
-  { period: "Last 90 days", uploads: 120, views: 22580, downloads: 5940 },
-  { period: "All time", uploads: 234, views: 45290, downloads: 12480 },
-];
+interface TopProject {
+  id: string;
+  name: string;
+  svgs: number;
+  views: number;
+  downloads: number;
+  storage: string;
+  growth: number;
+}
 
 export default function Analytics() {
+  const { user } = useAuth();
+
+  const { data: analyticsData } = useQuery({
+    queryKey: ['analytics', user?.id],
+    queryFn: async () => {
+      if (!user) return null;
+
+      // Get user's SVGs with aggregated stats
+      const { data: svgs } = await supabase
+        .from('svgs')
+        .select('views, downloads, favorited, file_size, created_at, name, project_id, projects(name)')
+        .eq('user_id', user.id);
+
+      if (!svgs) return null;
+
+      const totalViews = svgs.reduce((sum, svg) => sum + (svg.views || 0), 0);
+      const totalDownloads = svgs.reduce((sum, svg) => sum + (svg.downloads || 0), 0);
+      const totalFavorites = svgs.filter(svg => svg.favorited).length;
+      const totalUploads = svgs.length;
+
+      return {
+        totalViews,
+        totalDownloads,
+        totalFavorites,
+        totalUploads,
+        viewsGrowth: 12.5, // Mock growth data for now
+        downloadsGrowth: 8.3,
+        favoritesGrowth: 15.2,
+        uploadsGrowth: 5.7,
+        svgs
+      };
+    },
+    enabled: !!user
+  });
+
+  const { data: topSVGs } = useQuery({
+    queryKey: ['top-svgs', user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+
+      const { data: svgs } = await supabase
+        .from('svgs')
+        .select('id, name, views, downloads, favorited, projects(name)')
+        .eq('user_id', user.id)
+        .order('views', { ascending: false })
+        .limit(5);
+
+      return svgs?.map(svg => ({
+        id: svg.id,
+        name: svg.name,
+        project: svg.projects?.name || 'Unknown',
+        views: svg.views || 0,
+        downloads: svg.downloads || 0,
+        favorites: svg.favorited ? 1 : 0
+      })) || [];
+    },
+    enabled: !!user
+  });
+
+  const { data: topProjects } = useQuery({
+    queryKey: ['top-projects', user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+
+      const { data: projects } = await supabase
+        .from('projects')
+        .select(`
+          id,
+          name,
+          svgs(views, downloads, file_size)
+        `)
+        .eq('user_id', user.id);
+
+      return projects?.map(project => {
+        const svgCount = project.svgs?.length || 0;
+        const totalViews = project.svgs?.reduce((sum: number, svg: any) => sum + (svg.views || 0), 0) || 0;
+        const totalDownloads = project.svgs?.reduce((sum: number, svg: any) => sum + (svg.downloads || 0), 0) || 0;
+        const totalSize = project.svgs?.reduce((sum: number, svg: any) => sum + (svg.file_size || 0), 0) || 0;
+
+        return {
+          id: project.id,
+          name: project.name,
+          svgs: svgCount,
+          views: totalViews,
+          downloads: totalDownloads,
+          storage: `${(totalSize / 1024 / 1024).toFixed(1)} MB`,
+          growth: Math.random() * 30 - 5 // Mock growth data
+        };
+      }) || [];
+    },
+    enabled: !!user
+  });
+
   const StatCard = ({ title, value, growth, icon: Icon, description }: {
     title: string;
     value: string | number;
@@ -53,9 +146,9 @@ export default function Analytics() {
         <Icon className="h-4 w-4 text-muted-foreground" />
       </CardHeader>
       <CardContent>
-        <div className="text-2xl font-bold">{value.toLocaleString()}</div>
+        <div className="text-2xl font-bold">{typeof value === 'number' ? value.toLocaleString() : value}</div>
         <div className="flex items-center space-x-2 text-xs">
-          <span className={growth >= 0 ? "text-success" : "text-destructive"}>
+          <span className={growth >= 0 ? "text-green-600" : "text-red-600"}>
             {growth >= 0 ? "+" : ""}{growth}%
           </span>
           <span className="text-muted-foreground">{description}</span>
@@ -63,6 +156,17 @@ export default function Analytics() {
       </CardContent>
     </Card>
   );
+
+  if (!analyticsData) {
+    return (
+      <div className="space-y-8">
+        <div>
+          <h1 className="text-3xl font-bold">Analytics</h1>
+          <p className="text-muted-foreground">Loading your analytics...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">
@@ -76,29 +180,29 @@ export default function Analytics() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard
           title="Total Views"
-          value={mockStats.totalViews}
-          growth={mockStats.viewsGrowth}
+          value={analyticsData.totalViews}
+          growth={analyticsData.viewsGrowth}
           icon={Eye}
           description="from last month"
         />
         <StatCard
           title="Downloads"
-          value={mockStats.totalDownloads}
-          growth={mockStats.downloadsGrowth}
+          value={analyticsData.totalDownloads}
+          growth={analyticsData.downloadsGrowth}
           icon={Download}
           description="from last month"
         />
         <StatCard
           title="Favorites"
-          value={mockStats.totalFavorites}
-          growth={mockStats.favoritesGrowth}
+          value={analyticsData.totalFavorites}
+          growth={analyticsData.favoritesGrowth}
           icon={Heart}
           description="from last month"
         />
         <StatCard
           title="Uploads"
-          value={mockStats.totalUploads}
-          growth={mockStats.uploadsGrowth}
+          value={analyticsData.totalUploads}
+          growth={analyticsData.uploadsGrowth}
           icon={Upload}
           description="from last month"
         />
@@ -109,7 +213,6 @@ export default function Analytics() {
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="svgs">Top SVGs</TabsTrigger>
           <TabsTrigger value="projects">Projects</TabsTrigger>
-          <TabsTrigger value="usage">Usage Timeline</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
@@ -122,8 +225,8 @@ export default function Analytics() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {mockTopSVGs.slice(0, 5).map((svg, index) => (
-                    <div key={svg.name} className="flex items-center justify-between">
+                  {topSVGs?.slice(0, 5).map((svg, index) => (
+                    <div key={svg.id} className="flex items-center justify-between">
                       <div className="flex items-center space-x-3">
                         <div className="h-8 w-8 bg-primary/10 rounded-lg flex items-center justify-center">
                           <span className="text-primary font-bold text-sm">{index + 1}</span>
@@ -151,12 +254,12 @@ export default function Analytics() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {mockTopProjects.slice(0, 5).map((project) => (
-                    <div key={project.name} className="space-y-2">
+                  {topProjects?.slice(0, 5).map((project) => (
+                    <div key={project.id} className="space-y-2">
                       <div className="flex items-center justify-between">
                         <span className="font-medium text-sm">{project.name}</span>
                         <Badge variant={project.growth >= 0 ? "secondary" : "destructive"} className="text-xs">
-                          {project.growth >= 0 ? "+" : ""}{project.growth}%
+                          {project.growth >= 0 ? "+" : ""}{project.growth.toFixed(1)}%
                         </Badge>
                       </div>
                       <div className="space-y-1">
@@ -164,7 +267,7 @@ export default function Analytics() {
                           <span>{project.views} views</span>
                           <span>{project.downloads} downloads</span>
                         </div>
-                        <Progress value={(project.views / 6000) * 100} className="h-2" />
+                        <Progress value={Math.min((project.views / 1000) * 100, 100)} className="h-2" />
                       </div>
                     </div>
                   ))}
@@ -182,8 +285,8 @@ export default function Analytics() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {mockTopSVGs.map((svg, index) => (
-                  <div key={svg.name} className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
+                {topSVGs?.map((svg, index) => (
+                  <div key={svg.id} className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
                     <div className="flex items-center space-x-4">
                       <div className="h-10 w-10 bg-primary/10 rounded-lg flex items-center justify-center">
                         <span className="text-primary font-bold">{index + 1}</span>
@@ -222,12 +325,12 @@ export default function Analytics() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {mockTopProjects.map((project) => (
-                  <div key={project.name} className="p-4 bg-muted/50 rounded-lg">
+                {topProjects?.map((project) => (
+                  <div key={project.id} className="p-4 bg-muted/50 rounded-lg">
                     <div className="flex items-center justify-between mb-3">
                       <h3 className="font-medium">{project.name}</h3>
                       <Badge variant={project.growth >= 0 ? "secondary" : "destructive"}>
-                        {project.growth >= 0 ? "+" : ""}{project.growth}%
+                        {project.growth >= 0 ? "+" : ""}{project.growth.toFixed(1)}%
                       </Badge>
                     </div>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
@@ -246,47 +349,6 @@ export default function Analytics() {
                       <div>
                         <p className="text-muted-foreground">Storage</p>
                         <p className="font-medium">{project.storage}</p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="usage" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Usage Timeline</CardTitle>
-              <CardDescription>Track your activity over time</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-6">
-                {mockUsageTimeline.map((period) => (
-                  <div key={period.period} className="space-y-3">
-                    <h3 className="font-medium">{period.period}</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-muted-foreground">Uploads</span>
-                          <span className="font-medium">{period.uploads}</span>
-                        </div>
-                        <Progress value={(period.uploads / 250) * 100} className="h-2" />
-                      </div>
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-muted-foreground">Views</span>
-                          <span className="font-medium">{period.views.toLocaleString()}</span>
-                        </div>
-                        <Progress value={(period.views / 50000) * 100} className="h-2" />
-                      </div>
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-muted-foreground">Downloads</span>
-                          <span className="font-medium">{period.downloads.toLocaleString()}</span>
-                        </div>
-                        <Progress value={(period.downloads / 15000) * 100} className="h-2" />
                       </div>
                     </div>
                   </div>

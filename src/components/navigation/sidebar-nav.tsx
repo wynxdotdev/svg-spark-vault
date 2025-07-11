@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { 
@@ -8,7 +9,8 @@ import {
   Settings, 
   User,
   ChevronRight,
-  Plus
+  Plus,
+  Compass
 } from "lucide-react";
 import {
   Sidebar,
@@ -26,10 +28,14 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useAuth } from "@/hooks/useAuth";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { CreateProjectDialog } from "@/components/project/CreateProjectDialog";
 
 const mainNavItems = [
   { title: "Dashboard", url: "/", icon: Home },
   { title: "Search", url: "/search", icon: Search },
+  { title: "Explore", url: "/explore", icon: Compass },
   { title: "Upload", url: "/upload", icon: Upload },
   { title: "Analytics", url: "/analytics", icon: BarChart3 },
 ];
@@ -39,19 +45,37 @@ const accountItems = [
   { title: "Settings", url: "/settings", icon: Settings },
 ];
 
-// Mock projects data
-const mockProjects = [
-  { id: "1", name: "UI Icons", count: 45, color: "bg-blue-500" },
-  { id: "2", name: "Illustrations", count: 23, color: "bg-green-500" },
-  { id: "3", name: "Logos", count: 12, color: "bg-purple-500" },
-  { id: "4", name: "Random", count: 89, color: "bg-gray-500" },
-];
-
 export function SidebarNav() {
   const { open } = useSidebar();
   const location = useLocation();
   const { user, signOut } = useAuth();
   const [projectsExpanded, setProjectsExpanded] = useState(true);
+
+  const { data: userProjects } = useQuery({
+    queryKey: ['user-projects', user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+
+      const { data } = await supabase
+        .from('projects')
+        .select(`
+          id,
+          name,
+          color,
+          svgs(id)
+        `)
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      return data?.map(project => ({
+        id: project.id,
+        name: project.name,
+        count: project.svgs?.length || 0,
+        color: project.color || 'bg-blue-500'
+      })) || [];
+    },
+    enabled: !!user
+  });
 
   const getNavCls = ({ isActive }: { isActive: boolean }) =>
     isActive ? "bg-primary text-primary-foreground" : "hover:bg-accent hover:text-accent-foreground";
@@ -95,17 +119,19 @@ export function SidebarNav() {
               )}
             </SidebarGroupLabel>
             {open && (
-              <Button size="icon" variant="ghost" className="h-6 w-6">
-                <Plus className="h-3 w-3" />
-                <span className="sr-only">Add project</span>
-              </Button>
+              <CreateProjectDialog>
+                <Button size="icon" variant="ghost" className="h-6 w-6">
+                  <Plus className="h-3 w-3" />
+                  <span className="sr-only">Add project</span>
+                </Button>
+              </CreateProjectDialog>
             )}
           </div>
           
           {(open && projectsExpanded) && (
             <SidebarGroupContent>
               <SidebarMenu>
-                {mockProjects.map((project) => (
+                {userProjects?.map((project) => (
                   <SidebarMenuItem key={project.id}>
                     <SidebarMenuButton asChild>
                       <NavLink to={`/project/${project.id}`} className={getNavCls}>
@@ -120,6 +146,13 @@ export function SidebarNav() {
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 ))}
+                {userProjects?.length === 0 && open && (
+                  <SidebarMenuItem>
+                    <div className="px-2 py-1 text-sm text-muted-foreground">
+                      No projects yet
+                    </div>
+                  </SidebarMenuItem>
+                )}
               </SidebarMenu>
             </SidebarGroupContent>
           )}
@@ -149,17 +182,24 @@ export function SidebarNav() {
       
       <SidebarFooter>
         <div className="space-y-2 p-2">
-          <div className="flex items-center justify-between">
+          {open && (
             <div className="text-xs text-muted-foreground truncate">
               {user?.email}
             </div>
+          )}
+          <div className="flex items-center justify-between">
+            {!open && (
+              <div className="text-xs text-muted-foreground truncate w-8">
+                {user?.email?.charAt(0).toUpperCase()}
+              </div>
+            )}
             <ThemeToggle />
           </div>
           <SidebarMenuButton 
             onClick={signOut}
             className="w-full text-destructive hover:text-destructive hover:bg-destructive/10"
           >
-            Sign Out
+            {open ? "Sign Out" : "Out"}
           </SidebarMenuButton>
         </div>
       </SidebarFooter>
