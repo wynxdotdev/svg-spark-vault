@@ -1,36 +1,162 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Plus, Upload, Folder, TrendingUp, Clock, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Link } from "react-router-dom";
+import { CreateProjectDialog } from "@/components/project/CreateProjectDialog";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 
-// Mock data
-const mockStats = {
-  totalProjects: 12,
-  totalSVGs: 234,
-  recentUploads: 15,
-  favoriteIcons: 67
-};
+interface DashboardStats {
+  totalProjects: number;
+  totalSVGs: number;
+  recentUploads: number;
+  favoriteIcons: number;
+}
 
-const mockRecentUploads = [
-  { id: 1, name: "arrow-right.svg", project: "UI Icons", uploadedAt: "2 hours ago", size: "1.2kb" },
-  { id: 2, name: "user-circle.svg", project: "Avatars", uploadedAt: "5 hours ago", size: "2.1kb" },
-  { id: 3, name: "shopping-cart.svg", project: "E-commerce", uploadedAt: "1 day ago", size: "1.8kb" },
-  { id: 4, name: "heart-filled.svg", project: "Social", uploadedAt: "2 days ago", size: "0.9kb" },
-];
+interface RecentUpload {
+  id: string;
+  name: string;
+  project: string;
+  uploadedAt: string;
+  size: string;
+}
 
-const mockProjects = [
-  { id: 1, name: "UI Icons", count: 45, color: "bg-blue-500", updated: "Today" },
-  { id: 2, name: "Illustrations", count: 23, color: "bg-green-500", updated: "Yesterday" },
-  { id: 3, name: "Logos", count: 12, color: "bg-purple-500", updated: "3 days ago" },
-  { id: 4, name: "Social Media", count: 31, color: "bg-pink-500", updated: "1 week ago" },
-  { id: 5, name: "E-commerce", count: 18, color: "bg-orange-500", updated: "2 weeks ago" },
-  { id: 6, name: "Random", count: 89, color: "bg-gray-500", updated: "1 month ago" },
-];
+interface Project {
+  id: string;
+  name: string;
+  count: number;
+  color: string | null;
+  updated: string;
+}
 
 export default function Dashboard() {
+  const [stats, setStats] = useState<DashboardStats>({
+    totalProjects: 0,
+    totalSVGs: 0,
+    recentUploads: 0,
+    favoriteIcons: 0
+  });
+  const [recentUploads, setRecentUploads] = useState<RecentUpload[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
+
+  useEffect(() => {
+    if (user) {
+      fetchDashboardData();
+    }
+  }, [user]);
+
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true);
+      
+      // Fetch projects with SVG counts
+      const { data: projectsData, error: projectsError } = await supabase
+        .from('projects')
+        .select(`
+          id,
+          name,
+          color,
+          updated_at,
+          svgs (
+            id
+          )
+        `)
+        .order('updated_at', { ascending: false });
+
+      if (projectsError) throw projectsError;
+
+      // Fetch recent SVG uploads
+      const { data: svgsData, error: svgsError } = await supabase
+        .from('svgs')
+        .select(`
+          id,
+          name,
+          file_size,
+          created_at,
+          projects (
+            name
+          )
+        `)
+        .order('created_at', { ascending: false })
+        .limit(4);
+
+      if (svgsError) throw svgsError;
+
+      // Fetch favorites count
+      const { count: favoritesCount } = await supabase
+        .from('svgs')
+        .select('*', { count: 'exact', head: true })
+        .eq('favorited', true);
+
+      // Fetch recent uploads count (last 7 days)
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      
+      const { count: recentCount } = await supabase
+        .from('svgs')
+        .select('*', { count: 'exact', head: true })
+        .gte('created_at', sevenDaysAgo.toISOString());
+
+      // Transform data
+      const transformedProjects = projectsData?.map(project => ({
+        id: project.id,
+        name: project.name,
+        count: project.svgs?.length || 0,
+        color: project.color || 'bg-blue-500',
+        updated: formatRelativeTime(project.updated_at)
+      })) || [];
+
+      const transformedUploads = svgsData?.map(svg => ({
+        id: svg.id,
+        name: svg.name,
+        project: svg.projects?.name || 'No Project',
+        uploadedAt: formatRelativeTime(svg.created_at),
+        size: svg.file_size ? `${(svg.file_size / 1024).toFixed(1)}kb` : 'N/A'
+      })) || [];
+
+      setProjects(transformedProjects);
+      setRecentUploads(transformedUploads);
+      setStats({
+        totalProjects: projectsData?.length || 0,
+        totalSVGs: svgsData?.length || 0,
+        recentUploads: recentCount || 0,
+        favoriteIcons: favoritesCount || 0
+      });
+
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const formatRelativeTime = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffInMs = now.getTime() - date.getTime();
+    const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
+    
+    if (diffInDays === 0) return 'Today';
+    if (diffInDays === 1) return 'Yesterday';
+    if (diffInDays < 7) return `${diffInDays} days ago`;
+    if (diffInDays < 30) return `${Math.floor(diffInDays / 7)} weeks ago`;
+    return `${Math.floor(diffInDays / 30)} months ago`;
+  };
+
+  if (!user) {
+    return (
+      <div className="text-center py-12">
+        <h1 className="text-2xl font-bold mb-2">Please sign in</h1>
+        <p className="text-muted-foreground">You need to be signed in to view your dashboard.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-8">
       {/* Welcome Section */}
@@ -47,10 +173,15 @@ export default function Dashboard() {
                 Upload SVGs
               </Link>
             </Button>
-            <Button variant="outline" size="lg" className="bg-white/10 border-white/20 text-primary-foreground hover:bg-white/20">
-              <Plus className="h-4 w-4" />
-              New Project
-            </Button>
+            <CreateProjectDialog 
+              onProjectCreated={fetchDashboardData}
+              trigger={
+                <Button variant="outline" size="lg" className="bg-white/10 border-white/20 text-primary-foreground hover:bg-white/20">
+                  <Plus className="h-4 w-4" />
+                  New Project
+                </Button>
+              }
+            />
           </div>
         </div>
         
@@ -67,7 +198,7 @@ export default function Dashboard() {
             <Folder className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{mockStats.totalProjects}</div>
+            <div className="text-2xl font-bold">{loading ? '...' : stats.totalProjects}</div>
             <p className="text-xs text-muted-foreground">
               +2 from last month
             </p>
@@ -80,7 +211,7 @@ export default function Dashboard() {
             <Upload className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{mockStats.totalSVGs}</div>
+            <div className="text-2xl font-bold">{loading ? '...' : stats.totalSVGs}</div>
             <p className="text-xs text-muted-foreground">
               +15 this week
             </p>
@@ -93,7 +224,7 @@ export default function Dashboard() {
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{mockStats.recentUploads}</div>
+            <div className="text-2xl font-bold">{loading ? '...' : stats.recentUploads}</div>
             <p className="text-xs text-muted-foreground">
               Last 7 days
             </p>
@@ -106,7 +237,7 @@ export default function Dashboard() {
             <Star className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{mockStats.favoriteIcons}</div>
+            <div className="text-2xl font-bold">{loading ? '...' : stats.favoriteIcons}</div>
             <p className="text-xs text-muted-foreground">
               Bookmarked icons
             </p>
@@ -130,7 +261,11 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {mockRecentUploads.map((upload) => (
+              {recentUploads.length === 0 ? (
+                <div className="text-center py-4 text-muted-foreground">
+                  No recent uploads
+                </div>
+              ) : recentUploads.map((upload) => (
                 <div key={upload.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors">
                   <div className="flex items-center space-x-3">
                     <Avatar className="h-10 w-10 bg-primary">
@@ -161,15 +296,24 @@ export default function Dashboard() {
                 <CardTitle>Projects</CardTitle>
                 <CardDescription>Your SVG project collections</CardDescription>
               </div>
-              <Button variant="ghost" size="sm">
-                <Plus className="h-4 w-4" />
-                New Project
-              </Button>
+              <CreateProjectDialog 
+                onProjectCreated={fetchDashboardData}
+                trigger={
+                  <Button variant="ghost" size="sm">
+                    <Plus className="h-4 w-4" />
+                    New Project
+                  </Button>
+                }
+              />
             </div>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 gap-3">
-              {mockProjects.slice(0, 6).map((project) => (
+              {projects.length === 0 ? (
+                <div className="text-center py-4 text-muted-foreground">
+                  No projects yet. Create your first project!
+                </div>
+              ) : projects.slice(0, 6).map((project) => (
                 <Link
                   key={project.id}
                   to={`/project/${project.id}`}
