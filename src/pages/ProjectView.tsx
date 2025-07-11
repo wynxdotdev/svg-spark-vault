@@ -31,7 +31,7 @@ export default function ProjectView() {
         .from('projects')
         .select(`
           *,
-          profiles(display_name, avatar_url)
+          profiles!projects_user_id_fkey(display_name, avatar_url)
         `)
         .eq('id', projectId)
         .single();
@@ -58,10 +58,10 @@ export default function ProjectView() {
       // Apply sorting
       switch (sortBy) {
         case 'views':
-          query = query.order('views', { ascending: false, nullsLast: true });
+          query = query.order('views', { ascending: false });
           break;
         case 'downloads':
-          query = query.order('downloads', { ascending: false, nullsLast: true });
+          query = query.order('downloads', { ascending: false });
           break;
         case 'date':
           query = query.order('created_at', { ascending: false });
@@ -203,7 +203,7 @@ export default function ProjectView() {
                 {project.is_public ? "Public" : "Private"}
               </Badge>
               <span className="text-sm text-muted-foreground">
-                by {project.profiles?.display_name || 'Anonymous'}
+                by {(project.profiles as any)?.display_name || 'Anonymous'}
               </span>
               <span className="text-sm text-muted-foreground">
                 {svgs?.length || 0} SVGs

@@ -32,9 +32,9 @@ export default function SVGPreview() {
             color,
             is_public,
             user_id,
-            profiles (display_name, avatar_url)
+            profiles!projects_user_id_fkey (display_name, avatar_url)
           ),
-          profiles (display_name, avatar_url)
+          profiles!svgs_user_id_fkey (display_name, avatar_url)
         `)
         .eq('id', svgId)
         .single();
@@ -270,7 +270,7 @@ export default function SVGPreview() {
                       <User className="h-5 w-5" />
                     </div>
                     <div>
-                      <p className="font-medium">{svg.profiles?.display_name || 'Anonymous'}</p>
+                      <p className="font-medium">{(svg.profiles as any)?.display_name || 'Anonymous'}</p>
                       <div className="flex items-center space-x-1 text-sm text-muted-foreground">
                         <Calendar className="h-3 w-3" />
                         <span>Created {new Date(svg.created_at).toLocaleDateString()}</span>
@@ -299,11 +299,11 @@ export default function SVGPreview() {
                         </p>
                       )}
                       <div className="flex items-center space-x-2 mt-1">
-                        <Badge variant="secondary" size="sm">
+                        <Badge variant="secondary">
                           {svg.projects?.is_public ? 'Public' : 'Private'}
                         </Badge>
                         <span className="text-xs text-muted-foreground">
-                          by {svg.projects?.profiles?.display_name || 'Anonymous'}
+                          by {(svg.projects?.profiles as any)?.display_name || 'Anonymous'}
                         </span>
                       </div>
                     </div>

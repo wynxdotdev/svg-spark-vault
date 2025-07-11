@@ -66,7 +66,7 @@ export default function Explore() {
           color,
           created_at,
           user_id,
-          profiles(display_name, avatar_url),
+          profiles!projects_user_id_fkey(display_name, avatar_url),
           svgs(id, views, downloads, favorited)
         `)
         .eq('is_public', true);
@@ -121,7 +121,7 @@ export default function Explore() {
           user_id,
           project_id,
           projects(name, color, is_public),
-          profiles(display_name)
+          profiles!svgs_user_id_fkey(display_name)
         `);
 
       // Only get SVGs from public projects
@@ -204,17 +204,21 @@ export default function Explore() {
       }
 
       // Create notification for original creator
-      await supabase.from('notifications').insert({
-        user_id: originalUserId,
-        type: 'fork',
-        title: 'Project Forked',
-        message: `${user.email} forked your project "${projectName}"`,
-        data: {
-          forked_by: user.id,
-          original_project_id: projectId,
-          forked_project_id: forkedProject.id
-        }
-      }).catch(() => {}); // Ignore if notifications table doesn't exist
+      try {
+        await supabase.from('notifications').insert({
+          user_id: originalUserId,
+          type: 'fork',
+          title: 'Project Forked',
+          message: `${user.email} forked your project "${projectName}"`,
+          data: {
+            forked_by: user.id,
+            original_project_id: projectId,
+            forked_project_id: forkedProject.id
+          }
+        });
+      } catch {
+        // Ignore notification errors
+      }
 
       toast({
         title: "Project forked successfully!",
@@ -312,7 +316,7 @@ export default function Explore() {
                       <div className="flex items-center space-x-2">
                         <User className="h-4 w-4 text-muted-foreground" />
                         <span className="text-sm text-muted-foreground">
-                          by {project.profiles?.display_name || 'Anonymous'}
+                          by {(project.profiles as any)?.display_name || 'Anonymous'}
                         </span>
                         <div className="flex items-center space-x-1 text-xs text-muted-foreground">
                           <Calendar className="h-3 w-3" />
@@ -379,7 +383,7 @@ export default function Explore() {
                         </div>
                       </div>
                       <div className="text-xs text-muted-foreground">
-                        by {svg.profiles?.display_name || 'Anonymous'}
+                        by {(svg.profiles as any)?.display_name || 'Anonymous'}
                       </div>
                     </div>
                   </CardContent>

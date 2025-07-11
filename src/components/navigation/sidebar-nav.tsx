@@ -119,12 +119,14 @@ export function SidebarNav() {
               )}
             </SidebarGroupLabel>
             {open && (
-              <CreateProjectDialog>
-                <Button size="icon" variant="ghost" className="h-6 w-6">
-                  <Plus className="h-3 w-3" />
-                  <span className="sr-only">Add project</span>
-                </Button>
-              </CreateProjectDialog>
+              <CreateProjectDialog 
+                trigger={
+                  <Button size="icon" variant="ghost" className="h-6 w-6">
+                    <Plus className="h-3 w-3" />
+                    <span className="sr-only">Add project</span>
+                  </Button>
+                }
+              />
             )}
           </div>
           
