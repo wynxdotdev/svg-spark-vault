@@ -9,6 +9,8 @@ import { Separator } from "@/components/ui/separator";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "@/hooks/use-toast";
+import { SVGDisplay } from "@/components/svg/SVGDisplay";
+import { SVGSettings } from "@/components/svg/SVGSettings";
 
 export default function SVGPreview() {
   const { svgId } = useParams();
@@ -199,7 +201,12 @@ export default function SVGPreview() {
             <Card>
               <CardContent className="p-8">
                 <div className="aspect-square bg-grid-small-black/[0.2] dark:bg-grid-small-white/[0.2] rounded-lg flex items-center justify-center">
-                  <div className="text-6xl text-muted-foreground">SVG</div>
+                  <SVGDisplay 
+                    svgId={svg.id}
+                    filePath={svg.file_path}
+                    className="max-w-full max-h-full"
+                    fallback={<div className="text-6xl text-muted-foreground">SVG</div>}
+                  />
                 </div>
               </CardContent>
             </Card>
@@ -229,6 +236,7 @@ export default function SVGPreview() {
                 <ExternalLink className="h-4 w-4 mr-2" />
                 View Project
               </Button>
+              <SVGSettings svg={svg} />
             </div>
           </div>
 

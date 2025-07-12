@@ -13,6 +13,7 @@ import { useState } from "react";
 import { toast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 import { ProjectSettings } from "@/components/project/ProjectSettings";
+import { SVGDisplay } from "@/components/svg/SVGDisplay";
 
 export default function ProjectView() {
   const { projectId } = useParams();
@@ -283,10 +284,15 @@ export default function ProjectView() {
                   <Card key={svg.id} className="group hover:shadow-lg transition-shadow">
                     <CardContent className="p-4">
                       <div 
-                        className="aspect-square bg-muted rounded-lg mb-3 flex items-center justify-center cursor-pointer"
+                        className="aspect-square bg-muted rounded-lg mb-3 flex items-center justify-center cursor-pointer overflow-hidden"
                         onClick={() => navigate(`/svg/${svg.id}`)}
                       >
-                        <div className="text-2xl text-muted-foreground">SVG</div>
+                        <SVGDisplay 
+                          svgId={svg.id}
+                          filePath={svg.file_path}
+                          className="max-w-full max-h-full p-2"
+                          fallback={<div className="text-2xl text-muted-foreground">SVG</div>}
+                        />
                       </div>
                       <div className="space-y-2">
                         <h3 className="font-medium text-sm truncate">{svg.name}</h3>
@@ -345,8 +351,13 @@ export default function ProjectView() {
                           className="flex items-center space-x-4 cursor-pointer flex-1"
                           onClick={() => navigate(`/svg/${svg.id}`)}
                         >
-                          <div className="w-12 h-12 bg-muted rounded-lg flex items-center justify-center">
-                            <div className="text-sm text-muted-foreground">SVG</div>
+                          <div className="w-12 h-12 bg-muted rounded-lg flex items-center justify-center overflow-hidden">
+                            <SVGDisplay 
+                              svgId={svg.id}
+                              filePath={svg.file_path}
+                              className="max-w-full max-h-full"
+                              fallback={<div className="text-sm text-muted-foreground">SVG</div>}
+                            />
                           </div>
                           <div className="flex-1">
                             <h3 className="font-medium">{svg.name}</h3>
