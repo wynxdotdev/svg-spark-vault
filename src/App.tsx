@@ -20,6 +20,7 @@ import Analytics from "@/pages/Analytics";
 import Profile from "@/pages/Profile";
 import Settings from "@/pages/Settings";
 import ProjectView from "@/pages/ProjectView";
+import ProjectProperties from "@/pages/ProjectProperties";
 import Explore from "@/pages/Explore";
 import SVGPreview from "@/pages/SVGPreview";
 import Auth from "@/pages/Auth";
@@ -47,6 +48,7 @@ const App = () => (
                   <Route path="profile" element={<Profile />} />
                   <Route path="settings" element={<Settings />} />
                   <Route path="project/:projectId" element={<ProjectView />} />
+                  <Route path="project/:projectId/properties" element={<ProjectProperties />} />
                   <Route path="svg/:svgId" element={<SVGPreview />} />
                 </Route>
                 <Route path="*" element={<NotFound />} />

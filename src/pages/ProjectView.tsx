@@ -213,6 +213,14 @@ export default function ProjectView() {
           </div>
         </div>
         <div className="flex items-center space-x-2">
+          <Button 
+            variant="outline" 
+            onClick={() => navigate(`/project/${projectId}/properties`)}
+            className="flex items-center space-x-2"
+          >
+            <Eye className="h-4 w-4" />
+            <span>Properties</span>
+          </Button>
           {isOwner && <ProjectSettings project={project} />}
           {isOwner && (
             <Button onClick={() => navigate('/upload')} className="flex items-center space-x-2">
